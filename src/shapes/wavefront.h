@@ -1,76 +1,58 @@
-//add by dk
-#if defined(_MSC_VER)
-#pragma once
-#endif
-
-#ifndef PBRT_SHAPES_WAVEFRONT_H
-#define PBRT_SHAPES_WAVEFRONT_H
-
+// add .obj plug-in
 /*
-*  wavefront.cpp
-*  Mark Colbert
-*  ma434187@pegasus.cc.ucf.edu	
-*
-*  Jan Kautz: Fixed bug for nVerticesTotal size not being set.
-*
-*  Carsten Dachsbacher, bug fixed: for obj-files with unused vertices, we need to pass
-*  the complete vertex list (=> nVerticesTotal)
-*
-*  The following will parse triangulated obj files that can eaisly be exported from 
-*  lightwave, maya, or 3d studio max.  
-*
-*  TODO: The largest problem about this program is that if there are a different
-*	number of normal verticies or UV verticies than point verticies, which there usually are, the 
-*  program will just create as many verticies as there are in the index to 
-*  easily ensure that every point has the proper UV, normal, and point vertex
-*  information.  The fix is to just use a more efficient methodology of combining
-*  all the data.
-*  
-*  TODO: The other problem about this parser is that it only works with triangulated data.
-*	In other words, if you give it an object that is anything but triangles, it will
-*  only read the first 3 vertecies of a face and you will get one very odd looking
-*  model.  Thus, it would be nice to have some sort of triangulation algorithm in
-*  this program to allow any generic OBJ file to be input for the plugin.
-*
+pbrt source code Copyright(c) 1998-2010 Matt Pharr and Greg Humphreys.
+
+This file is part of pbrt.
+
+pbrt is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.  Note that the text contents of
+the book "Physically Based Rendering" are *not* licensed under the
+GNU GPL.
+
+pbrt is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 */
 
+#ifndef PBRT_SHAPES_Wavefront_H
+#define PBRT_SHAPES_Wavefront_H
 
-#include "shape.h"
-#include "paramset.h"
-//#include "dynload.h"
-//#include "api.cpp"
-#include "iostream"
+// shapes/Wavefront.h*
+#include "trianglemesh.h"
+#include <map>
+using std::map;
 
-// line buffer size determines at compile time how large the input
-// buffer should be for the file input lines
-#define LINE_BUFFER_SIZE 1024
-
-class Wavefront : public Shape {
+// Wavefront Declarations
+class Wavefront {
 public:
-	Wavefront(const char* filename, const Transform *o2w, const Transform *w2o, bool reverseOrientation);
-	~Wavefront() {
-		if (vertexIndex) delete[] vertexIndex;
-		if (p) delete[] p;
-		if (n) delete[] n;
-		if (uvs) delete[] uvs;
-	}
+	// Wavefront Public Methods
+	Wavefront(){}
+	void ParseOBJfile(string filename,int **vi,int *nvi,Point ** P,int * npi,Normal ** N,int * nni,float ** uvs,int *nuvi);
+	void MergeIndicies(vector<Point> &points, vector<Normal> &normals, vector<float> &uvVec, vector<int> &vIndex, vector<int> &normalIndex, vector<int> &uvIndex);
 
-	BBox ObjectBound() const;
-	BBox WorldBound() const;
-	bool CanIntersect() const { return false; }
-	void Refine(vector<Reference<Shape> > &refined) const;
-
-private:
-	void MergeIndicies(vector<Point> &points, vector<Normal> &normals, vector<float> &uvVec,
-		vector<int> &vIndex, vector<int> &normalIndex, vector<int> &uvIndex);
+	int nvi, npi, nni;
+	// TriangleMesh Proteted Data
 	int ntris, nverts;
-	int nVerticesTotal;
 	int *vertexIndex;
 	Point *p;
 	Normal *n;
+	Vector *s;
 	float *uvs;
+	Reference<Texture<float> > alphaTexture;
+
 };
 
-Shape *CreateShape(const Transform *o2w, const Transform *w2o, bool reverseOrientation, const ParamSet &params);
 
-#endif // PBRT_CORE_SHAPE_H
+
+TriangleMesh *CreateWavefrontShape(const Transform *o2w, const Transform *w2o,
+								   bool reverseOrientation, const ParamSet &params,
+								   map<string, Reference<Texture<float> > > *floatTextures = NULL);
+
+#endif // PBRT_SHAPES_Wavefront_H

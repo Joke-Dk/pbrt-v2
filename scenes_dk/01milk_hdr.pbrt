@@ -1,0 +1,46 @@
+Scale -1 1 1
+#Rotate -90 0 1 0 
+LookAt 0 7 7    0 3.9 0   0 1 0
+Camera "perspective" "float fov" [60]
+
+Sampler "lowdiscrepancy" "integer pixelsamples" [1]
+PixelFilter "box"
+
+Film "image" "integer xresolution" [1200] "integer yresolution" [900]
+    "string filename" "Dipole0503_gao3.exr"
+
+SurfaceIntegrator "dipolesubsurface" "float minsampledistance" [.05]
+    "float maxerror" [.05]
+#SurfaceIntegrator "directlighting"
+#VolumeIntegrator "single" "float stepsize" [10.25]
+
+WorldBegin
+
+	# 1 - lights
+	AttributeBegin
+	AreaLightSource "diffuse" "integer nsamples" [8] "rgb L" [ 35 35 35 ]
+	Translate 0 20 0
+	Shape "sphere" "float radius" [5]
+	AttributeEnd
+	
+	# 2 - floor
+	AttributeBegin
+	Material "matte" "color Kd" [.25 .25 .25]
+	Texture "grid" "color" "imagemap" "string filename" ["textures/lines.exr"]
+	Texture "sgrid" "color" "scale" "texture tex1" "grid" "color tex2" [ .05 .05 .05 ]
+	Material "matte" "texture Kd" "sgrid"
+	Shape "trianglemesh" "integer indices" [0 1 2 0 3 2 ]  "point P" [ -10 0 -10  10 0 -10   10 0 10   -10 0 10 ]
+	AttributeEnd
+	
+	# 3 - milk obj
+	AttributeBegin
+	Material "subsurface" "float scale" [3.01] #"color sigma_a" [ 0.0011 0.0024 0.014]	"color Kr" [.09 0.12 0.24]
+	Translate 1 4.5 -2
+	Scale 3.425 3.425 3.425
+	Shape "wavefront" "string filename" ["C:\\Users\\dk\\master\\scenes_dk\\geometry\\ParticleMesh_RK01_00016.obj"]
+	AttributeEnd
+
+WorldEnd
+
+
+

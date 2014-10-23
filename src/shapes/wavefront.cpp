@@ -1,8 +1,36 @@
-//add by dk
-#include "stdafx.h"
-#include "shapes/wavefront.h"
-#include "api.cpp"
+// add .obj plug-in
+/*
+pbrt source code Copyright(c) 1998-2010 Matt Pharr and Greg Humphreys.
 
+This file is part of pbrt.
+
+pbrt is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.  Note that the text contents of
+the book "Physically Based Rendering" are *not* licensed under the
+GNU GPL.
+
+pbrt is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+*/
+
+// line buffer size determines at compile time how large the input
+// buffer should be for the file input lines
+#define LINE_BUFFER_SIZE 1024
+
+// shapes/Wavefront.cpp*
+#include "shapes/Wavefront.h"
+#include "texture.h"
+#include "textures/constant.h"
+#include "paramset.h"
+#include "montecarlo.h"
 // GETNUM just gets the next number from a line of input in an OBJ file
 #ifndef GETNUM
 #define GETNUM(lineBuffer, numBuffer, lindex, nindex, tval)  \
@@ -13,22 +41,22 @@
 	numBuffer[nindex] = lineBuffer[lindex]; \
 	nindex++; \
 	lindex++; \
-} \
+	} \
 	numBuffer[nindex] = '\0'; \
 	tval = atoi(numBuffer);
 #endif
 
 // constructor / parser
-Wavefront::Wavefront(const char* filename, const Transform *o2w, const Transform *w2o, bool reverseOrientation) :
-Shape(o2w, w2o, reverseOrientation), vertexIndex(NULL),  p(NULL), n(NULL), uvs(NULL) {
+void
+Wavefront::ParseOBJfile(string filename,int **vi,int *nvi,Point ** P,int * npi,Normal ** N,int * nni,float ** uvs,int *nuvi) {
 	FILE* fin;
-	fin = fopen(filename, "r");
+	fin = fopen(filename.c_str(), "r");
 	if (!fin) return;
 
 	// temporary input buffers
 	vector<Point> points;
 	vector<int> verts;
-	vector<int> normalIndex;	
+	vector<int> normalIndex;
 	vector<int> uvIndex;
 
 	vector<Normal> file_normals;
@@ -39,7 +67,7 @@ Shape(o2w, w2o, reverseOrientation), vertexIndex(NULL),  p(NULL), n(NULL), uvs(N
 	float uv1, uv2;
 
 	char lineBuffer[LINE_BUFFER_SIZE];
-	char numBuffer[32];
+	char numBuffer[256];
 	int lindex=0;
 	int nindex=0;
 	int ival, uvval, nval;
@@ -104,6 +132,18 @@ Shape(o2w, w2o, reverseOrientation), vertexIndex(NULL),  p(NULL), n(NULL), uvs(N
 	// merge everything back into one index array instead of multiple arrays
 	MergeIndicies(points, file_normals, file_uvvector, verts, normalIndex, uvIndex);
 
+	*vi = this->vertexIndex;
+	*nvi = this->nvi;
+
+	*P = this->p;
+	*npi = *nvi;
+
+	*N = this->n;
+	*nni = *nvi;
+
+	*uvs = this->uvs;
+	*nuvi = *nvi;
+
 	points.clear();
 	file_normals.clear();
 	file_uvvector.clear();
@@ -111,8 +151,12 @@ Shape(o2w, w2o, reverseOrientation), vertexIndex(NULL),  p(NULL), n(NULL), uvs(N
 	normalIndex.clear();
 	uvIndex.clear();
 
-	if (n) std::cout << "Used normals" << std::endl;
-	if (uvs) std::cout << "Used texture coords" << std::endl;
+
+	Warning("Found %d vertices (%d)\n",*nvi,vi);
+	Warning("Found %d points (%d)\n",*nvi,P);
+
+	if (n) Warning("Used normal\n");
+	if (uvs) Warning("Used UVs\n");
 
 }
 
@@ -123,11 +167,11 @@ void Wavefront::MergeIndicies(vector<Point> &points, vector<Normal> &normals, ve
 
 
 	if (!useNormals && !useUVs) { 
-		std::cout << "Copying points" << std::endl;
+		Warning("Copying points\n");
 		// just copy the points into the array
 		nverts = vIndex.size();
 		p = new Point[points.size()];
-		nVerticesTotal = points.size();
+		nvi = points.size();
 		for (unsigned int i=0; i < points.size(); i++)
 			p[i] = points[i];
 		vertexIndex = new int[nverts];
@@ -137,7 +181,7 @@ void Wavefront::MergeIndicies(vector<Point> &points, vector<Normal> &normals, ve
 	}
 
 	// assumes that vertexIndex = normalIndex = uvIndex	
-	nVerticesTotal = nverts = vIndex.size();				// FIX: Dec, 3
+	nvi = nverts = vIndex.size();				// FIX: Dec, 3
 	vertexIndex = new int[nverts];
 
 	p = new Point[nverts];
@@ -155,37 +199,87 @@ void Wavefront::MergeIndicies(vector<Point> &points, vector<Normal> &normals, ve
 	}	
 }
 
-BBox Wavefront::ObjectBound() const {
-	BBox bobj;
-	for (int i = 0; i < nverts; i++)
-		bobj = Union(bobj, (*WorldToObject)(p[i]));
-	return bobj;
-}
+TriangleMesh *CreateWavefrontShape(const Transform *o2w, const Transform *w2o,
+   bool reverseOrientation, const ParamSet &params,
+   map<string, Reference<Texture<float> > > *floatTextures) {
+   string filename = params.FindOneString("filename","");
+   bool discardDegnerateUVs = params.FindOneBool("discarddegenerateUVs", false);
+   // XXX should complain if uvs aren't an array of 2...
 
-BBox Wavefront::WorldBound() const {
-	BBox worldBounds;
-	for (int i = 0; i < nverts; i++)
-		worldBounds = Union(worldBounds, p[i]);
-	return worldBounds;
-}
+   Wavefront * wfs = new Wavefront();
+   int nvi =0, npi = 0, nuvi = 0, nsi = 0, nni = 0;
+   int *vi    = NULL;
+   Point *P   = NULL;
+   float *uvs = NULL;
+   Normal * N = NULL;
+   Vector * S = NULL;
 
-// Refine
-// generates the triangle mesh shape
-void Wavefront::Refine(vector<Reference<Shape> > &refined) const {
-	ParamSet paramSet;
-	paramSet.AddInt("indices", vertexIndex, ntris*3);
-	paramSet.AddPoint("P", p, nVerticesTotal);		
-	if (n) paramSet.AddNormal("N", n, nVerticesTotal);
-	if (uvs) paramSet.AddFloat("uv", uvs, nVerticesTotal*2);
-	//bool ReverseOrientation
-	refined.push_back(MakeShape("trianglemesh", ObjectToWorld,WorldToObject, ReverseOrientation, paramSet));
-}
+   wfs->ParseOBJfile(filename,&vi,&nvi,&P,&npi,&N,&nni,&uvs,&nuvi);
 
-// CreateShape
-// Only one parameter, filename, which directs the program
-// to the relative path of the object file
-//extern "C" DLLEXPORT 
-Shape *CreateShape(const Transform *o2w, const Transform *w2o, bool reverseOrientation, const ParamSet &params) {		
-	string filename = params.FindOneString("filename","");
-	return new Wavefront(filename.c_str(), o2w, w2o,reverseOrientation);
+   if (uvs) {
+	   if (nuvi < 2 * npi) {
+		   Error("Not enough of \"uv\"s for triangle mesh.  Expencted %d, "
+			   "found %d.  Discarding.\n", 2*npi, nuvi);
+		   uvs = NULL;
+	   }
+	   else if (nuvi > 2 * npi)
+		   Warning("More \"uv\"s provided than will be used for triangle "
+		   "mesh.  (%d expcted, %d found)\n", 2*npi, nuvi);
+   }
+   if (!vi || !P) {
+	   Warning("No vertices (%d) or points (%d) found. TriangleMesh not created.",vi,P);
+	   return NULL;
+   }
+
+   if (S && nsi != npi) {
+	   Error("Number of \"S\"s for triangle mesh must match \"P\"s");
+	   S = NULL;
+   }
+   if (N && nni != npi) {
+	   Error("Number of \"N\"s for triangle mesh must match \"P\"s");
+	   N = NULL;
+   }
+
+   if (discardDegnerateUVs && uvs && N) {
+	   // if there are normals, check for bad uv's that
+	   // give degenerate mappings; discard them if so
+	   const int *vp = vi;
+	   for (int i = 0; i < nvi; i += 3, vp += 3) {
+		   float area = .5f * Cross(P[vp[0]]-P[vp[1]], P[vp[2]]-P[vp[1]]).Length();
+		   if (area < 1e-7) continue; // ignore degenerate tris.
+		   if ((uvs[2*vp[0]] == uvs[2*vp[1]] &&
+			   uvs[2*vp[0]+1] == uvs[2*vp[1]+1]) ||
+			   (uvs[2*vp[1]] == uvs[2*vp[2]] &&
+			   uvs[2*vp[1]+1] == uvs[2*vp[2]+1]) ||
+			   (uvs[2*vp[2]] == uvs[2*vp[0]] &&
+			   uvs[2*vp[2]+1] == uvs[2*vp[0]+1])) {
+				   Warning("Degenerate uv coordinates in triangle mesh.  Discarding all uvs.");
+				   uvs = NULL;
+				   break;
+		   }
+	   }
+   }
+   for (int i = 0; i < nvi; ++i)
+	   if (vi[i] >= npi) {
+		   Error("trianglemesh has out of-bounds vertex index %d (%d \"P\" values were given",
+			   vi[i], npi);
+		   return NULL;
+	   }
+
+	   Reference<Texture<float> > alphaTex = NULL;
+	   string alphaTexName = params.FindTexture("alpha");
+	   if (alphaTexName != "") {
+		   if (floatTextures->find(alphaTexName) != floatTextures->end())
+			   alphaTex = (*floatTextures)[alphaTexName];
+		   else
+			   Error("Couldn't find float texture \"%s\" for \"alpha\" parameter",
+			   alphaTexName.c_str());
+	   }
+	   else if (params.FindOneFloat("alpha", 1.f) == 0.f)
+		   alphaTex = new ConstantTexture<float>(0.f);
+
+	   Warning("OBJ Parsing done creating Triangle mesh with %d vertices ... ",nvi);
+
+	   return new TriangleMesh(o2w, w2o, reverseOrientation, nvi/3, npi, vi, P,
+		   N, S, uvs, alphaTex);
 }

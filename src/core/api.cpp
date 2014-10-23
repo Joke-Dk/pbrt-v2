@@ -351,9 +351,9 @@ Reference<Shape> MakeShape(const string &name,
     else if (name == "nurbs")
         s = CreateNURBSShape(object2world, world2object, reverseOrientation,
                              paramSet);
-	else if (name == "wavefront") //add by dk
-		s = CreateShape(object2world, world2object, reverseOrientation,
-		paramSet);
+	else if (name == "wavefront") // add .obj plug-in
+		s = CreateWavefrontShape(object2world, world2object, reverseOrientation,
+		paramSet, &graphicsState.floatTextures);
     else
         Warning("Shape \"%s\" unknown.", name.c_str());
     paramSet.ReportUnused();
