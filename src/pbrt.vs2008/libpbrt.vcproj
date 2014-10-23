@@ -920,10 +920,6 @@
 					>
 				</File>
 				<File
-					RelativePath="..\core\targa.c"
-					>
-				</File>
-				<File
 					RelativePath="..\core\integrator.cpp"
 					>
 				</File>
@@ -1017,6 +1013,10 @@
 				</File>
 				<File
 					RelativePath="..\core\spectrum.cpp"
+					>
+				</File>
+				<File
+					RelativePath="..\core\targa.c"
 					>
 				</File>
 				<File
@@ -1305,6 +1305,10 @@
 				</File>
 				<File
 					RelativePath="..\shapes\trianglemesh.cpp"
+					>
+				</File>
+				<File
+					RelativePath="..\shapes\wavefront.cpp"
 					>
 				</File>
 			</Filter>
@@ -2046,10 +2050,6 @@
 					>
 				</File>
 				<File
-					RelativePath="..\core\targa.h"
-					>
-				</File>
-				<File
 					RelativePath="..\core\integrator.h"
 					>
 				</File>
@@ -2155,6 +2155,10 @@
 				</File>
 				<File
 					RelativePath="..\core\stdafx.h"
+					>
+				</File>
+				<File
+					RelativePath="..\core\targa.h"
 					>
 				</File>
 				<File
@@ -2459,6 +2463,10 @@
 				</File>
 				<File
 					RelativePath="..\shapes\trianglemesh.h"
+					>
+				</File>
+				<File
+					RelativePath="..\shapes\wavefront.h"
 					>
 				</File>
 			</Filter>

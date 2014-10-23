@@ -1,0 +1,33 @@
+Scale -1 1 1
+LookAt 0 7 7    0 3.9 0   0 1 0
+Camera "perspective" "float fov" [60]
+
+Sampler "lowdiscrepancy" "integer pixelsamples" [1]
+PixelFilter "box"
+
+Film "image" "integer xresolution" [1200] "integer yresolution" [900]
+    "string filename" "Dipole0602_tiaoshi_2.exr"
+
+SurfaceIntegrator "dipolesubsurface" "float minsampledistance" [.09]
+    "float maxerror" [.05]
+
+
+WorldBegin
+
+##point-light
+AttributeBegin
+LightSource "point" "rgb I" [ 135 135 135 ] "point from" [0 20 0]
+AttributeEnd
+
+##liquad - milk
+AttributeBegin
+Material "subsurface" "float scale" [1.01] #"color sigma_a" [ 0.0011 0.0024 0.014]
+	"color Kr" [.09 0.12 0.24]
+Translate 1 4.5 -2
+Scale 2.425 2.425 2.425
+Shape "wavefront" "string filename" ["C:\\DK\\scene\\mesh2\\ParticleMesh_RK01_00016.obj"]
+AttributeEnd
+
+
+
+WorldEnd
